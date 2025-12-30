@@ -34,6 +34,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     );
 
     if (foundUser) {
+      // SYSTEM FIX: Check if user is verified
+      if (foundUser.area === 'Menunggu Verifikasi Admin') {
+        setError('Akun Anda sedang dalam proses verifikasi oleh Administrator. Mohon tunggu persetujuan.');
+        return;
+      }
       onLogin(foundUser);
     } else {
       setError('Username atau password salah.');
@@ -62,11 +67,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       password: regPassword,
       fullName: regName,
       role: regRole as UserRole,
+      // SYSTEM LOGIC: Default state is unverified
       area: 'Menunggu Verifikasi Admin'
     };
 
     saveUser(newUser);
-    setSuccessMsg('Akun berhasil dibuat! Silakan login. Data Anda telah masuk ke sistem Admin.');
+    setSuccessMsg('Registrasi berhasil! Akun Anda kini menunggu persetujuan Admin sebelum dapat digunakan.');
     setIsRegistering(false);
     setUsername(regUsername);
     setPassword('');
@@ -104,12 +110,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {/* Form Container */}
           <div className="p-8 pt-6">
             {error && (
-              <div className="mb-4 bg-red-50/80 backdrop-blur-sm text-red-600 text-sm p-3 rounded-lg border border-red-200 text-center animate-pulse">
+              <div className="mb-4 bg-red-50/80 backdrop-blur-sm text-red-600 text-sm p-3 rounded-lg border border-red-200 text-center animate-pulse font-medium">
                 {error}
               </div>
             )}
             {successMsg && (
-              <div className="mb-4 bg-green-50/80 backdrop-blur-sm text-green-600 text-sm p-3 rounded-lg border border-green-200 text-center">
+              <div className="mb-4 bg-green-50/80 backdrop-blur-sm text-green-700 text-sm p-3 rounded-lg border border-green-200 text-center font-medium">
                 {successMsg}
               </div>
             )}

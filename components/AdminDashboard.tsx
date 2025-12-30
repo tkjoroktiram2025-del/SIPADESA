@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole, Resident } from '../types';
 import { getStoredUsers, saveUser, deleteUser, getStoredResidents, deleteResident } from '../services/store';
-import { Users, UserPlus, KeyRound, Trash2, Database, BarChart3, ShieldCheck, Pencil, Search, FileText } from 'lucide-react';
+import { Users, UserPlus, KeyRound, Trash2, Database, BarChart3, ShieldCheck, Pencil, Search, FileText, CheckCircle } from 'lucide-react';
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -82,9 +82,37 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
     }
   };
 
-  const handleDeleteUser = (userId: string) => {
-    if (confirm("Apakah anda yakin ingin menghapus user ini?")) {
-      deleteUser(userId);
+  // SYSTEM FIX: Verify User and Assign Area
+  const handleVerifyUser = (user: User) => {
+    let assignedArea = '';
+    
+    // Logic based on role
+    if (user.role === UserRole.RT_RW) {
+       assignedArea = prompt("Masukkan Wilayah Kerja RT/RW (Contoh: RT 01 RW 05):", "RT 01 RW 01") || '';
+       if (!assignedArea) return; // Cancelled
+    } else if (user.role === UserRole.KADUS) {
+       assignedArea = prompt("Masukkan Nama Dusun (Contoh: Dusun Mawar):", "Dusun Mawar") || '';
+       if (!assignedArea) return;
+    } else {
+       if(!confirm("Aktifkan akun ini?")) return;
+       assignedArea = ''; // Admin/Kasi might not need specific area or handled differently
+    }
+
+    const updatedUser = { ...user, area: assignedArea };
+    saveUser(updatedUser);
+    refreshData();
+    alert(`Akun ${user.fullName} berhasil diverifikasi dan aktif.`);
+  };
+
+  const handleDeleteUser = (userToDelete: User) => {
+    // SYSTEM FIX: Prevent deleting yourself
+    if (userToDelete.id === currentUser.id) {
+        alert("Anda tidak dapat menghapus akun Anda sendiri saat sedang login.");
+        return;
+    }
+
+    if (confirm(`Apakah anda yakin ingin menghapus user ${userToDelete.username}?`)) {
+      deleteUser(userToDelete.id);
       refreshData();
     }
   }
@@ -247,7 +275,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
                             <th className="px-6 py-4">Nama</th>
                             <th className="px-6 py-4">Username</th>
                             <th className="px-6 py-4">Jabatan</th>
-                            <th className="px-6 py-4">Wilayah</th>
+                            <th className="px-6 py-4">Wilayah / Status</th>
                             <th className="px-6 py-4 text-right">Aksi</th>
                         </tr>
                     </thead>
@@ -267,18 +295,37 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
                             </td>
                             <td className="px-6 py-4 text-gray-500">
                                 {user.area === 'Menunggu Verifikasi Admin' ? (
-                                    <span className="text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-200 text-[10px]">VERIFIKASI</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-200 text-[10px] animate-pulse">BUTUH VERIFIKASI</span>
+                                    </div>
                                 ) : (
                                     user.area || '-'
                                 )}
                             </td>
                             <td className="px-6 py-4 text-right">
                                 <div className="flex justify-end gap-1">
+                                    {/* SYSTEM FIX: Verification Button */}
+                                    {user.area === 'Menunggu Verifikasi Admin' && (
+                                       <button 
+                                         onClick={() => handleVerifyUser(user)} 
+                                         className="p-2 bg-emerald-100 text-emerald-600 hover:bg-emerald-200 rounded-lg transition-colors mr-2"
+                                         title="Setujui Akun"
+                                       >
+                                         <CheckCircle size={16} />
+                                       </button>
+                                    )}
+
                                     <button onClick={() => openEditForm(user)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil size={16} /></button>
                                     <button onClick={() => handleResetPassword(user.id)} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><KeyRound size={16} /></button>
-                                    {user.role !== UserRole.ADMIN && (
-                                        <button onClick={() => handleDeleteUser(user.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
-                                    )}
+                                    
+                                    {/* SYSTEM FIX: Disable self-delete */}
+                                    <button 
+                                      onClick={() => handleDeleteUser(user)} 
+                                      disabled={user.id === currentUser.id}
+                                      className={`p-2 rounded-lg transition-colors ${user.id === currentUser.id ? 'text-gray-300 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'}`}
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
                                 </div>
                             </td>
                         </tr>
