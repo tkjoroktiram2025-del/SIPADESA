@@ -1,0 +1,5 @@
+{
+  "name": "SIPADESA - Sistem Pendataan Desa",
+  "description": "Aplikasi pendataan warga desa terintegrasi untuk Admin, RT/RW, Kepala Dusun, dan Kasi dengan manajemen user terpusat.",
+  "requestFramePermissions": []
+}
