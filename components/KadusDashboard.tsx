@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Resident } from '../types';
-import { getStoredResidents } from '../services/store';
-import { Search, CheckCircle2, Map } from 'lucide-react';
+import { fetchResidents } from '../services/store';
+import { Search, CheckCircle2, Map, Loader2 } from 'lucide-react';
 
 interface KadusDashboardProps {
   currentUser: User;
@@ -10,11 +10,20 @@ interface KadusDashboardProps {
 const KadusDashboard: React.FC<KadusDashboardProps> = ({ currentUser }) => {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Kadus ideally sees data for their Dusun
-    const all = getStoredResidents();
-    setResidents(all);
+    const loadData = async () => {
+        try {
+            const all = await fetchResidents();
+            setResidents(all);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    loadData();
   }, []);
 
   const filteredResidents = residents.filter(r => 
@@ -23,14 +32,14 @@ const KadusDashboard: React.FC<KadusDashboardProps> = ({ currentUser }) => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       <div className="bg-emerald-900 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-center relative overflow-hidden">
         <div className="relative z-10">
           <h2 className="text-2xl font-bold mb-1">Validasi Data Dusun</h2>
           <p className="text-emerald-200">Wilayah: {currentUser.area || 'Semua Dusun'}</p>
         </div>
         <div className="relative z-10 mt-4 md:mt-0 bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/20">
-            <span className="text-3xl font-bold block text-center">{filteredResidents.length}</span>
+            <span className="text-3xl font-bold block text-center">{isLoading ? '-' : filteredResidents.length}</span>
             <span className="text-xs uppercase tracking-wider opacity-80">Total Warga</span>
         </div>
         {/* Decor */}
@@ -48,7 +57,13 @@ const KadusDashboard: React.FC<KadusDashboardProps> = ({ currentUser }) => {
             />
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[200px]">
+          {isLoading ? (
+             <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                <Loader2 className="animate-spin mb-2" />
+                <span>Memuat Data...</span>
+             </div>
+          ) : (
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-100 text-gray-600 font-semibold">
               <tr>
@@ -77,7 +92,8 @@ const KadusDashboard: React.FC<KadusDashboardProps> = ({ currentUser }) => {
               ))}
             </tbody>
           </table>
-          {filteredResidents.length === 0 && (
+          )}
+          {!isLoading && filteredResidents.length === 0 && (
             <div className="p-8 text-center text-gray-400">
               Data tidak ditemukan untuk area ini.
             </div>

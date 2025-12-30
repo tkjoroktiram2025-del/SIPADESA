@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole, Resident } from '../types';
-import { getStoredUsers, saveUser, deleteUser, getStoredResidents, deleteResident } from '../services/store';
-import { Users, UserPlus, KeyRound, Trash2, Database, BarChart3, ShieldCheck, Pencil, Search, FileText, CheckCircle } from 'lucide-react';
+import { fetchUsers, saveUser, deleteUser, fetchResidents, deleteResident } from '../services/store';
+import { Users, UserPlus, KeyRound, Trash2, Database, BarChart3, ShieldCheck, Pencil, Search, FileText, CheckCircle, Loader2 } from 'lucide-react';
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -12,6 +12,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'residents'>('overview');
   const [residentSearch, setResidentSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Form State for User Management
   const [showUserForm, setShowUserForm] = useState(false);
@@ -29,9 +30,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
     refreshData();
   }, []);
 
-  const refreshData = () => {
-    setUsers(getStoredUsers());
-    setResidents(getStoredResidents());
+  const refreshData = async () => {
+    setIsLoading(true);
+    try {
+        const u = await fetchUsers();
+        const r = await fetchResidents();
+        setUsers(u);
+        setResidents(r);
+    } catch (error) {
+        alert("Gagal mengambil data dari server");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   const openCreateForm = () => {
@@ -52,8 +62,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
     setShowUserForm(true);
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
     const userToSave: User = {
       id: isEditing ? userId : Date.now().toString(),
@@ -64,63 +75,69 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
       area: newArea,
     };
 
-    saveUser(userToSave);
+    await saveUser(userToSave);
     setShowUserForm(false);
     resetForm();
-    refreshData();
+    await refreshData();
+    setIsLoading(false);
   };
 
-  const handleResetPassword = (userId: string) => {
+  const handleResetPassword = async (userId: string) => {
     const newPass = prompt("Masukkan password baru untuk user ini:", "123456");
     if (newPass) {
+      setIsLoading(true);
       const user = users.find(u => u.id === userId);
       if (user) {
-        saveUser({ ...user, password: newPass });
-        refreshData();
+        await saveUser({ ...user, password: newPass });
+        await refreshData();
         alert(`Password untuk ${user.username} berhasil diubah.`);
       }
+      setIsLoading(false);
     }
   };
 
-  // SYSTEM FIX: Verify User and Assign Area
-  const handleVerifyUser = (user: User) => {
+  const handleVerifyUser = async (user: User) => {
     let assignedArea = '';
     
-    // Logic based on role
     if (user.role === UserRole.RT_RW) {
        assignedArea = prompt("Masukkan Wilayah Kerja RT/RW (Contoh: RT 01 RW 05):", "RT 01 RW 01") || '';
-       if (!assignedArea) return; // Cancelled
+       if (!assignedArea) return; 
     } else if (user.role === UserRole.KADUS) {
        assignedArea = prompt("Masukkan Nama Dusun (Contoh: Dusun Mawar):", "Dusun Mawar") || '';
        if (!assignedArea) return;
     } else {
        if(!confirm("Aktifkan akun ini?")) return;
-       assignedArea = ''; // Admin/Kasi might not need specific area or handled differently
+       assignedArea = ''; 
     }
 
+    setIsLoading(true);
     const updatedUser = { ...user, area: assignedArea };
-    saveUser(updatedUser);
-    refreshData();
+    await saveUser(updatedUser);
+    await refreshData();
     alert(`Akun ${user.fullName} berhasil diverifikasi dan aktif.`);
+    setIsLoading(false);
   };
 
-  const handleDeleteUser = (userToDelete: User) => {
-    // SYSTEM FIX: Prevent deleting yourself
+  const handleDeleteUser = async (userToDelete: User) => {
     if (userToDelete.id === currentUser.id) {
         alert("Anda tidak dapat menghapus akun Anda sendiri saat sedang login.");
         return;
     }
 
     if (confirm(`Apakah anda yakin ingin menghapus user ${userToDelete.username}?`)) {
-      deleteUser(userToDelete.id);
-      refreshData();
+      setIsLoading(true);
+      await deleteUser(userToDelete.id);
+      await refreshData();
+      setIsLoading(false);
     }
   }
 
-  const handleDeleteResident = (id: string) => {
+  const handleDeleteResident = async (id: string) => {
     if(confirm("Hapus data warga ini secara permanen?")) {
-      deleteResident(id);
-      refreshData();
+      setIsLoading(true);
+      await deleteResident(id);
+      await refreshData();
+      setIsLoading(false);
     }
   };
 
@@ -144,7 +161,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
+            <div className="bg-white p-4 rounded-xl shadow-2xl flex items-center gap-3">
+                <Loader2 className="animate-spin text-emerald-600" />
+                <span className="font-bold text-gray-700">Sinkronisasi Data...</span>
+            </div>
+        </div>
+      )}
+
        {/* Top Stats Cards */}
        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 flex items-center space-x-4 transition-transform hover:scale-[1.02]">
@@ -262,7 +288,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
                     <input placeholder="Area (Contoh: RT 01 / Dusun Mawar)" value={newArea} onChange={e => setNewArea(e.target.value)} className="p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none md:col-span-2" />
                     <div className="md:col-span-2 flex justify-end gap-2 mt-2">
                       <button type="button" onClick={() => setShowUserForm(false)} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg">Batal</button>
-                      <button type="submit" className="px-6 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-md">Simpan</button>
+                      <button type="submit" disabled={isLoading} className="px-6 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-md disabled:opacity-50">Simpan</button>
                     </div>
                   </form>
                 </div>
@@ -304,7 +330,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
                             </td>
                             <td className="px-6 py-4 text-right">
                                 <div className="flex justify-end gap-1">
-                                    {/* SYSTEM FIX: Verification Button */}
                                     {user.area === 'Menunggu Verifikasi Admin' && (
                                        <button 
                                          onClick={() => handleVerifyUser(user)} 
@@ -318,7 +343,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
                                     <button onClick={() => openEditForm(user)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil size={16} /></button>
                                     <button onClick={() => handleResetPassword(user.id)} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><KeyRound size={16} /></button>
                                     
-                                    {/* SYSTEM FIX: Disable self-delete */}
                                     <button 
                                       onClick={() => handleDeleteUser(user)} 
                                       disabled={user.id === currentUser.id}

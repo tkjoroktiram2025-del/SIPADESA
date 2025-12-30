@@ -3,11 +3,14 @@ import { User, UserRole, Resident } from '../types';
 const USERS_KEY = 'sipadesa_users';
 const RESIDENTS_KEY = 'sipadesa_residents';
 
+// Simulate Network Delay (0.5 - 1 second)
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Initial Seed Data
 const DEFAULT_ADMIN: User = {
   id: 'admin-1',
   username: 'admin',
-  password: 'admin123', // Default password
+  password: 'admin123',
   fullName: 'Administrator Desa',
   role: UserRole.ADMIN,
 };
@@ -41,7 +44,10 @@ const INITIAL_RESIDENTS: Resident[] = [
   },
 ];
 
-export const getStoredUsers = (): User[] => {
+// --- USER SERVICES (MOCK API) ---
+
+export const fetchUsers = async (): Promise<User[]> => {
+  await delay(800); // Simulate network latency
   const stored = localStorage.getItem(USERS_KEY);
   if (!stored) {
     localStorage.setItem(USERS_KEY, JSON.stringify([DEFAULT_ADMIN]));
@@ -50,26 +56,41 @@ export const getStoredUsers = (): User[] => {
   return JSON.parse(stored);
 };
 
-export const saveUser = (user: User) => {
-  const users = getStoredUsers();
-  const existingIndex = users.findIndex((u) => u.id === user.id);
+export const saveUser = async (user: User): Promise<User> => {
+  await delay(1000); // Simulate saving delay
+  const users = await fetchUsers(); // Re-use fetch to get current state
+  // We remove delay from fetchUsers inside here in a real app, but for mock:
+  // let's just get direct from storage to avoid double delay in this mock logic, 
+  // but logically we treat 'users' as what we got.
+  
+  // Actually, let's just read LS directly for the mutation to avoid double wait in mock
+  const stored = localStorage.getItem(USERS_KEY);
+  const currentUsers: User[] = stored ? JSON.parse(stored) : [DEFAULT_ADMIN];
+  
+  const existingIndex = currentUsers.findIndex((u) => u.id === user.id);
   
   if (existingIndex >= 0) {
-    users[existingIndex] = user;
+    currentUsers[existingIndex] = user;
   } else {
-    users.push(user);
+    currentUsers.push(user);
   }
   
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  localStorage.setItem(USERS_KEY, JSON.stringify(currentUsers));
+  return user;
 };
 
-export const deleteUser = (userId: string) => {
-  let users = getStoredUsers();
+export const deleteUser = async (userId: string): Promise<void> => {
+  await delay(800);
+  const stored = localStorage.getItem(USERS_KEY);
+  let users: User[] = stored ? JSON.parse(stored) : [];
   users = users.filter((u) => u.id !== userId);
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 };
 
-export const getStoredResidents = (): Resident[] => {
+// --- RESIDENT SERVICES (MOCK API) ---
+
+export const fetchResidents = async (): Promise<Resident[]> => {
+  await delay(800);
   const stored = localStorage.getItem(RESIDENTS_KEY);
   if (!stored) {
     localStorage.setItem(RESIDENTS_KEY, JSON.stringify(INITIAL_RESIDENTS));
@@ -78,8 +99,11 @@ export const getStoredResidents = (): Resident[] => {
   return JSON.parse(stored);
 };
 
-export const saveResident = (resident: Resident) => {
-  const residents = getStoredResidents();
+export const saveResident = async (resident: Resident): Promise<Resident> => {
+  await delay(1000);
+  const stored = localStorage.getItem(RESIDENTS_KEY);
+  const residents: Resident[] = stored ? JSON.parse(stored) : INITIAL_RESIDENTS;
+  
   const existingIndex = residents.findIndex((r) => r.id === resident.id);
 
   if (existingIndex >= 0) {
@@ -89,10 +113,13 @@ export const saveResident = (resident: Resident) => {
   }
 
   localStorage.setItem(RESIDENTS_KEY, JSON.stringify(residents));
+  return resident;
 };
 
-export const deleteResident = (id: string) => {
-  let residents = getStoredResidents();
+export const deleteResident = async (id: string): Promise<void> => {
+  await delay(800);
+  const stored = localStorage.getItem(RESIDENTS_KEY);
+  let residents: Resident[] = stored ? JSON.parse(stored) : [];
   residents = residents.filter(r => r.id !== id);
   localStorage.setItem(RESIDENTS_KEY, JSON.stringify(residents));
 }

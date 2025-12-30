@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Landmark, User, Lock, ArrowRight, UserPlus, ArrowLeft, Briefcase } from 'lucide-react';
+import { Landmark, User, Lock, ArrowRight, UserPlus, ArrowLeft, Briefcase, Loader2 } from 'lucide-react';
 import { User as UserType, UserRole } from '../types';
-import { getStoredUsers, saveUser } from '../services/store';
+import { fetchUsers, saveUser } from '../services/store';
 
 interface LoginProps {
   onLogin: (user: UserType) => void;
@@ -9,6 +9,7 @@ interface LoginProps {
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Login State
   const [username, setUsername] = useState('');
@@ -23,63 +24,79 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
+    setIsLoading(true);
 
-    const users = getStoredUsers();
-    const foundUser = users.find(
-      (u) => u.username === username && u.password === password
-    );
+    try {
+      const users = await fetchUsers();
+      const foundUser = users.find(
+        (u) => u.username === username && u.password === password
+      );
 
-    if (foundUser) {
-      // SYSTEM FIX: Check if user is verified
-      if (foundUser.area === 'Menunggu Verifikasi Admin') {
-        setError('Akun Anda sedang dalam proses verifikasi oleh Administrator. Mohon tunggu persetujuan.');
-        return;
+      if (foundUser) {
+        if (foundUser.area === 'Menunggu Verifikasi Admin') {
+          setError('Akun Anda sedang dalam proses verifikasi oleh Administrator. Mohon tunggu persetujuan.');
+          setIsLoading(false);
+          return;
+        }
+        onLogin(foundUser);
+      } else {
+        setError('Username atau password salah.');
+        setIsLoading(false);
       }
-      onLogin(foundUser);
-    } else {
-      setError('Username atau password salah.');
+    } catch (err) {
+      setError('Gagal menghubungkan ke server.');
+      setIsLoading(false);
     }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
+    setIsLoading(true);
 
     if (!regRole) {
       setError('Silakan pilih jabatan anda terlebih dahulu.');
+      setIsLoading(false);
       return;
     }
 
-    const users = getStoredUsers();
-    if (users.some(u => u.username === regUsername)) {
-      setError('Username sudah digunakan, silakan pilih yang lain.');
-      return;
+    try {
+      const users = await fetchUsers();
+      if (users.some(u => u.username === regUsername)) {
+        setError('Username sudah digunakan, silakan pilih yang lain.');
+        setIsLoading(false);
+        return;
+      }
+
+      const newUser: UserType = {
+        id: Date.now().toString(),
+        username: regUsername,
+        password: regPassword,
+        fullName: regName,
+        role: regRole as UserRole,
+        area: 'Menunggu Verifikasi Admin'
+      };
+
+      await saveUser(newUser);
+      
+      setSuccessMsg('Registrasi berhasil! Akun Anda kini menunggu persetujuan Admin sebelum dapat digunakan.');
+      setIsRegistering(false);
+      setUsername(regUsername);
+      setPassword('');
+      setRegName('');
+      setRegUsername('');
+      setRegPassword('');
+      setRegRole('');
+    } catch (err) {
+      setError('Terjadi kesalahan saat mendaftar.');
+    } finally {
+      setIsLoading(false);
     }
-
-    const newUser: UserType = {
-      id: Date.now().toString(),
-      username: regUsername,
-      password: regPassword,
-      fullName: regName,
-      role: regRole as UserRole,
-      // SYSTEM LOGIC: Default state is unverified
-      area: 'Menunggu Verifikasi Admin'
-    };
-
-    saveUser(newUser);
-    setSuccessMsg('Registrasi berhasil! Akun Anda kini menunggu persetujuan Admin sebelum dapat digunakan.');
-    setIsRegistering(false);
-    setUsername(regUsername);
-    setPassword('');
-    setRegName('');
-    setRegUsername('');
-    setRegPassword('');
-    setRegRole('');
   };
 
   return (
@@ -133,7 +150,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white"
+                      disabled={isLoading}
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white disabled:opacity-50"
                       placeholder="Masukkan username"
                       required
                     />
@@ -150,7 +168,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white"
+                      disabled={isLoading}
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white disabled:opacity-50"
                       placeholder="Masukkan password"
                       required
                     />
@@ -159,18 +178,23 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
                 <button
                   type="submit"
-                  className="w-full flex items-center justify-center py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-500/30 text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-500/30 text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Masuk Aplikasi
-                  <ArrowRight className="ml-2 w-4 h-4" />
+                  {isLoading ? (
+                    <><Loader2 className="animate-spin w-4 h-4 mr-2" /> Memuat...</>
+                  ) : (
+                    <>Masuk Aplikasi <ArrowRight className="ml-2 w-4 h-4" /></>
+                  )}
                 </button>
                 
                 <div className="mt-4 pt-4 border-t border-gray-100 text-center">
                   <p className="text-sm text-gray-600 mb-2">Belum punya akun?</p>
                   <button
                     type="button"
+                    disabled={isLoading}
                     onClick={() => setIsRegistering(true)}
-                    className="text-emerald-600 hover:text-emerald-800 font-bold text-sm flex items-center justify-center mx-auto transition-colors"
+                    className="text-emerald-600 hover:text-emerald-800 font-bold text-sm flex items-center justify-center mx-auto transition-colors disabled:opacity-50"
                   >
                     <UserPlus className="w-4 h-4 mr-1" /> Daftar Akun Baru
                   </button>
@@ -186,7 +210,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       type="text"
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
-                      className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white"
+                      disabled={isLoading}
+                      className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white disabled:opacity-50"
                       placeholder="Nama sesuai KTP"
                       required
                     />
@@ -198,7 +223,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       type="text"
                       value={regUsername}
                       onChange={(e) => setRegUsername(e.target.value)}
-                      className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white"
+                      disabled={isLoading}
+                      className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white disabled:opacity-50"
                       placeholder="Username unik"
                       required
                     />
@@ -210,7 +236,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       type="password"
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
-                      className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white"
+                      disabled={isLoading}
+                      className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white disabled:opacity-50"
                       placeholder="Rahasia"
                       required
                     />
@@ -226,7 +253,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                      <select
                        value={regRole}
                        onChange={(e) => setRegRole(e.target.value as UserRole)}
-                       className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white appearance-none"
+                       disabled={isLoading}
+                       className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white appearance-none disabled:opacity-50"
                        required
                      >
                        <option value="" disabled>Pilih Jabatan</option>
@@ -240,13 +268,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
                 <button
                   type="submit"
-                  className="w-full flex items-center justify-center py-3 px-4 rounded-xl shadow-lg shadow-emerald-500/30 text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition-all mt-6"
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center py-3 px-4 rounded-xl shadow-lg shadow-emerald-500/30 text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition-all mt-6 disabled:opacity-70"
                 >
-                  Daftar Sekarang
+                   {isLoading ? (
+                    <><Loader2 className="animate-spin w-4 h-4 mr-2" /> Memproses...</>
+                  ) : (
+                    'Daftar Sekarang'
+                  )}
                 </button>
 
                 <button
                     type="button"
+                    disabled={isLoading}
                     onClick={() => setIsRegistering(false)}
                     className="w-full text-gray-500 hover:text-gray-700 font-bold text-sm flex items-center justify-center mt-2 transition-colors"
                   >

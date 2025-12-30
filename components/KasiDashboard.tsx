@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { User, Resident } from '../types';
-import { getStoredResidents } from '../services/store';
+import { fetchResidents } from '../services/store';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { FileBarChart2, FileText, Download } from 'lucide-react';
+import { FileBarChart2, FileText, Download, Loader2 } from 'lucide-react';
 
 interface KasiDashboardProps {
   currentUser: User;
@@ -10,9 +10,20 @@ interface KasiDashboardProps {
 
 const KasiDashboard: React.FC<KasiDashboardProps> = ({ currentUser }) => {
   const [residents, setResidents] = useState<Resident[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setResidents(getStoredResidents());
+    const load = async () => {
+        try {
+            const data = await fetchResidents();
+            setResidents(data);
+        } catch (e) {
+            // handle error
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    load();
   }, []);
 
   // Compute Stats
@@ -33,6 +44,15 @@ const KasiDashboard: React.FC<KasiDashboardProps> = ({ currentUser }) => {
     name: key,
     jumlah: jobStats[key]
   }));
+
+  if (isLoading) {
+      return (
+          <div className="h-full w-full flex flex-col items-center justify-center text-emerald-600">
+              <Loader2 className="w-10 h-10 animate-spin mb-4" />
+              <p className="font-bold">Memuat Analisa Data...</p>
+          </div>
+      )
+  }
 
   return (
     <div className="space-y-6">

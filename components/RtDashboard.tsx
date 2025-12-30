@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Resident } from '../types';
-import { getStoredResidents, saveResident, deleteResident } from '../services/store';
-import { Plus, Search, MapPin, User as UserIcon, Briefcase, Calendar } from 'lucide-react';
+import { fetchResidents, saveResident, deleteResident } from '../services/store';
+import { Plus, Search, MapPin, User as UserIcon, Briefcase, Calendar, Loader2 } from 'lucide-react';
 
 interface RtDashboardProps {
   currentUser: User;
@@ -11,6 +11,7 @@ const RtDashboard: React.FC<RtDashboardProps> = ({ currentUser }) => {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Resident>>({});
@@ -19,18 +20,22 @@ const RtDashboard: React.FC<RtDashboardProps> = ({ currentUser }) => {
     refreshData();
   }, []);
 
-  const refreshData = () => {
-    // In a real app, we would filter by the RT's area ID from the backend
-    // Here we just load all for demo, or filter by client side if user has area set
-    const all = getStoredResidents();
-    // Simple filter simulation based on currentUser area if populated
-    // For demo purposes, we show all but assume RT inputs for their area
-    setResidents(all);
+  const refreshData = async () => {
+    setIsLoading(true);
+    try {
+        const all = await fetchResidents();
+        setResidents(all);
+    } catch (e) {
+        console.error("Connection error");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName || !formData.nik) return;
+    setIsLoading(true);
 
     const newResident: Resident = {
       id: formData.id || Date.now().toString(),
@@ -46,16 +51,19 @@ const RtDashboard: React.FC<RtDashboardProps> = ({ currentUser }) => {
       status: (formData.status as 'Tetap' | 'Kontrak') || 'Tetap',
     };
 
-    saveResident(newResident);
+    await saveResident(newResident);
     setIsFormOpen(false);
     setFormData({});
-    refreshData();
+    await refreshData();
+    setIsLoading(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if(confirm('Hapus data warga ini?')) {
-      deleteResident(id);
-      refreshData();
+      setIsLoading(true);
+      await deleteResident(id);
+      await refreshData();
+      setIsLoading(false);
     }
   }
 
@@ -65,7 +73,16 @@ const RtDashboard: React.FC<RtDashboardProps> = ({ currentUser }) => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
+            <div className="bg-white p-4 rounded-xl shadow-2xl flex items-center gap-3">
+                <Loader2 className="animate-spin text-emerald-600" />
+                <span className="font-bold text-gray-700">Sinkronisasi Data...</span>
+            </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
            <h2 className="text-2xl font-bold text-gray-800">Data Warga Lingkungan</h2>
@@ -190,7 +207,7 @@ const RtDashboard: React.FC<RtDashboardProps> = ({ currentUser }) => {
 
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
               <button type="button" onClick={() => setIsFormOpen(false)} className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-200 rounded-lg transition-colors">Batal</button>
-              <button type="submit" form="residentForm" className="px-5 py-2.5 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all">Simpan Data</button>
+              <button type="submit" disabled={isLoading} form="residentForm" className="px-5 py-2.5 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50">Simpan Data</button>
             </div>
           </div>
         </div>
